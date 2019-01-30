@@ -1,0 +1,116 @@
+---
+- hosts: media
+
+  tasks:
+    - name: Run the updates
+      become: True
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        autoremove: yes
+        upgrade: dist
+
+    - name: Install xubuntu core
+      become: True
+      apt:
+        name: xubuntu-core
+        state: present
+
+    - name: Add kodi user
+      become: True
+      user:
+        name: kodi
+        groups: cdrom,video,plugdev,users,input,netdev,dialout
+        state: present
+
+    - name: Add Kodi PPA
+      become: True
+      apt_repository:
+        repo: ppa:team-xbmc/ppa
+        state: present
+
+    - name: Add multiverse repo
+      become: True
+      apt_repository:
+        repo: "{{ item }}"
+        state: present
+      loop:
+        - "deb http://us.archive.ubuntu.com/ubuntu/ bionic multiverse"
+        - "deb http://us.archive.ubuntu.com/ubuntu/ bionic-updates multiverse"
+
+    - name: Add Nvidia driver repository
+      become: True
+      apt_repository:
+        repo: ppa:graphics-drivers/ppa
+        state: present
+
+    - name: Install programs
+      become: True
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+          - kodi
+          - kodi-peripheral-joystick
+          - steam
+          - openbox
+          - fakeroot
+          - nvidia-driver-410
+          - libc6-i386
+          - wmctrl
+
+    - name: Download Kodi Openbox
+      unarchive:
+        src: https://github.com/lufinkey/kodi-openbox/archive/master.zip
+        dest: /home/david
+        remote_src: yes
+
+    - name: Build Kodi Openbox deb
+      command: ./build.sh
+      args:
+        chdir: /home/david/kodi-openbox-master
+        creates: kodi-openbox.deb
+
+    - name: Install Kodi Openbox from deb
+      become: True
+      apt: 
+        deb: /home/david/kodi-openbox-master/kodi-openbox.deb
+
+    - name: Setup autologin in LightDM
+      become: True
+      blockinfile:
+        path: /etc/lightdm/lightdm.conf
+        create: yes
+        block: |
+          [Seat:*]
+          autologin-user=kodi
+          autologin-session=kodi-openbox
+
+    - name: Get splash screen animation
+      unarchive:
+        src: https://github.com/solbero/plymouth-theme-kodi-animated-logo/archive/master.zip
+        dest: /home/david
+        remote_src: yes
+
+    - name: Build splash screen installer
+      command: ./build.sh
+      args:
+        chdir: /home/david/plymouth-theme-kodi-animated-logo-master
+        creates: plymouth-theme-kodi-animated-logo.deb
+
+    - name: Install splash screen from deb
+      become: True
+      apt:
+        deb: /home/david/plymouth-theme-kodi-animated-logo-master/plymouth-theme-kodi-animated-logo.deb
+
+    - name: Get Teedubbs Kodi repository
+      become: True
+      become_user: kodi
+      get_url:
+        url: https://github.com/teeedubb/teeedubb-xbmc-repo/raw/master/repository.teeedubb/repository.teeedubb-1.0.2.zip
+        dest: /home/kodi/repository.teeedubb-1.0.2.zip
+        mode: 0750
+
+    
